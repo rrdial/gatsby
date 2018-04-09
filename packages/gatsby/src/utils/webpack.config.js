@@ -270,6 +270,7 @@ module.exports = async (
     // prettier-ignore
     let configRules = [
       rules.js(),
+      rules.eslint(),
       rules.yaml(),
       rules.fonts(),
       rules.images(),
