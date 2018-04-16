@@ -387,6 +387,88 @@ exports.mapEntitiesToMedia = entities => {
   })
 }
 
+exports.mapEntitiesToAcfRelationships = entities => {
+  console.log(
+    colorized.out(
+      `Starting mapEntitiesToAcfRelationships`,
+      colorized.color.Back.BgCyan
+    )
+  )
+  return entities.map(e => {
+    if (!e.acf) {
+      return e;
+    }
+
+    const isPostObject = field => 
+      _.isObject(field) &&
+      field.wordpress_id
+    const isArrayOfPostObjects = field =>
+      _.isArray(field) && field.length > 0 && isPostObject(field[0])
+    const getItemID = item => (item ? item.id : null)
+
+    const getObjectFromValue = (value, key) => {
+      if (isPostObject(value)) {
+        const objectNodeID = getItemID(
+          entities.find(e => e.wordpress_id === value.wordpress_id)
+        )
+        return {
+          objectNodeID,
+          deleteField: !!objectNodeID,
+        }
+      } else if (isArrayOfPostObjects(value)) {
+        return {
+          objectNodeID: value
+            .map(item => getObjectFromValue(item, key).objectNodeID)
+            .filter(id => id !== null),
+          deleteField: true,
+        }
+      }
+      return {
+        objectNodeID: null,
+        deleteField: false,
+      }
+    }
+
+    const replaceFieldsInObject = object => {
+      let deletedAllFields = true
+      _.each(object, (value, key) => {
+        const { objectNodeID, deleteField } = getObjectFromValue(value, key)
+        if (objectNodeID) {
+          object[`${key}___NODE`] = objectNodeID
+        }
+        if (deleteField) {
+          delete object[key]
+          // We found photo node (even if it has no image),
+          // We can end processing this path
+          return
+        } else {
+          deletedAllFields = false
+        }
+
+        if (_.isArray(value)) {
+          value.forEach(v => replaceFieldsInObject(v))
+        } else if (_.isObject(value)) {
+          replaceFieldsInObject(value)
+        }
+      })
+
+      // Deleting fields and replacing them with links to different nodes
+      // can cause build errors if object will have only linked properties:
+      // https://github.com/gatsbyjs/gatsby/blob/master/packages/gatsby/src/schema/infer-graphql-input-fields.js#L205
+      // Hacky workaround:
+      // Adding dummy field with concrete value (not link) fixes build
+      if (deletedAllFields && object && _.isObject(object)) {
+        object[`dummy`] = true
+      }
+    }
+    replaceFieldsInObject(e.acf)
+
+    console.log(colorized.out(e.wordpress_id, colorized.color.Back.BgYellow));
+    console.log(e);
+    return e
+  })
+}
+
 // Downloads media files and removes "sizes" data as useless in Gatsby context.
 exports.downloadMediaFiles = async ({
   entities,

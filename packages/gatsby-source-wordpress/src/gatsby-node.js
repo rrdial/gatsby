@@ -93,6 +93,9 @@ exports.sourceNodes = async (
   // Creates links from entities to media nodes
   entities = normalize.mapEntitiesToMedia(entities)
 
+  // Creates links from entities to media nodes
+  entities = normalize.mapEntitiesToAcfRelationships(entities)
+
   // Downloads media files and removes "sizes" data as useless in Gatsby context.
   entities = await normalize.downloadMediaFiles({
     entities,
